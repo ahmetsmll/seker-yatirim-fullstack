@@ -1,7 +1,6 @@
 server:
   error:
     include-message: always
-
 spring:
   datasource:
     url: jdbc:sqlserver://localhost:1433;databaseName=app_db;encrypt=false;trustServerCertificate=true
@@ -9,10 +8,15 @@ spring:
     password: StrongPass123!
     driver-class-name: com.microsoft.sqlserver.jdbc.SQLServerDriver
 
+  flyway:
+    enabled: true
+    locations: classpath:db/migration
+    baseline-on-migrate: true
+
   jpa:
     hibernate:
-      ddl-auto: update # Hibernate tabloları MS SQL üzerinde otomatik oluşturur
-    show-sql: true
+      ddl-auto: validate
+    show-sql: false
     properties:
       hibernate:
         format_sql: true

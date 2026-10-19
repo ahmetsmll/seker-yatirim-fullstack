@@ -8,17 +8,11 @@ import java.time.LocalTime;
 @Entity
 @Table(name = "business_hours")
 @Data
-public class BusinessHours {
+public class BusinessHours  extends BaseEntity {
 
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
-
-    @Column(name = "created_date", nullable = false)
-    private LocalDateTime createdDate;
-
-    @Column(name = "updated_date")
-    private LocalDateTime updatedDate;
 
     @Column(name = "start_time", nullable = false)
     private LocalTime startTime;

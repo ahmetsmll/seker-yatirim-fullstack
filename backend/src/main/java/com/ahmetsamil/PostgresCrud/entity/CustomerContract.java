@@ -10,17 +10,12 @@ import java.time.LocalDateTime;
 @Entity
 @Table(name = "customer_contract")
 @Data
-public class CustomerContract {
+public class CustomerContract  extends BaseEntity {
 
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
 
-    @Column(name = "created_date", nullable = false)
-    private LocalDateTime createdDate;
-
-    @Column(name = "updated_date")
-    private LocalDateTime updatedDate;
 
     @Column(name = "approved_date")
     private LocalDate approvedDate;

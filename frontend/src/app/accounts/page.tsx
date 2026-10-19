@@ -23,8 +23,10 @@ import {
     useCreateAccountMutation,
     useUpdateAccountMutation,
     useDeleteAccountMutation,
+    useDeleteMultipleAccountsMutation, // 1. Toplu Silme Hook'u Import Edildi
 } from '@/store/api/apiSlice';
 import { Account } from '@/types';
+import { CustomerSelect } from '@/components/common/CustomerSelect';
 
 export default function AccountsPage() {
     // RTK Query Hook'ları
@@ -32,6 +34,7 @@ export default function AccountsPage() {
     const [createAccount, { isLoading: isCreating }] = useCreateAccountMutation();
     const [updateAccount, { isLoading: isUpdating }] = useUpdateAccountMutation();
     const [deleteAccount, { isLoading: isDeleting }] = useDeleteAccountMutation();
+    const [deleteMultipleAccounts, { isLoading: isBulkDeleting }] = useDeleteMultipleAccountsMutation();
 
     // State Yönetimi
     const [searchTerm, setSearchTerm] = useState('');
@@ -41,6 +44,10 @@ export default function AccountsPage() {
     // Silme Modalı State'leri
     const [isDeleteOpen, setIsDeleteOpen] = useState(false);
     const [accountToDelete, setAccountToDelete] = useState<Account | null>(null);
+
+    // Toplu Silme State'leri (Kutucuk Seçimleri)
+    const [selectedIds, setSelectedIds] = useState<number[]>([]);
+    const [isBulkDeleteOpen, setIsBulkDeleteOpen] = useState(false);
 
     // Sayfa Ortasındaki Bildirim Modalı State'i
     const [feedbackModal, setFeedbackModal] = useState<{
@@ -70,6 +77,42 @@ export default function AccountsPage() {
         fullname: '',
     });
 
+    // --- KUTUCUK (CHECKBOX) SEÇİM MANTIKLARI ---
+    const handleSelectRow = (id: number) => {
+        if (selectedIds.includes(id)) {
+            setSelectedIds(selectedIds.filter((itemId) => itemId !== id));
+        } else {
+            setSelectedIds([...selectedIds, id]);
+        }
+    };
+
+    const handleSelectAll = () => {
+        if (!accounts) return;
+        if (selectedIds.length === accounts.length) {
+            setSelectedIds([]);
+        } else {
+            const allIds = accounts.map((a) => a.id).filter((id): id is number => id !== undefined);
+            setSelectedIds(allIds);
+        }
+    };
+
+    const handleConfirmBulkDelete = async () => {
+        if (selectedIds.length === 0) return;
+
+        try {
+            await deleteMultipleAccounts(selectedIds).unwrap();
+            setIsBulkDeleteOpen(false);
+            triggerFeedback(
+                'Hesaplar Silindi',
+                `Seçilen ${selectedIds.length} adet hesap kaydı başarıyla silindi.`,
+                'delete'
+            );
+            setSelectedIds([]);
+        } catch (err) {
+            console.error('Toplu silme başarısız:', err);
+        }
+    };
+
     // Mükerrer Hesap Kodu Kontrolü (Düzenlenen hesap hariç tutulur)
     const otherAccounts = accounts?.filter((a) =>
         selectedAccount ? a.id !== selectedAccount.id : true
@@ -82,7 +125,7 @@ export default function AccountsPage() {
         )
     );
 
-    const hasValidationErrors = isDuplicateAccountId;
+    const hasValidationErrors = isDuplicateAccountId || !formData.customerId;
 
     // Fuse.js Bulanık Arama Yapılandırması
     const fuse = useMemo(() => {
@@ -206,14 +249,27 @@ export default function AccountsPage() {
 
     return (
         <Box position="relative">
-            {/* Üst Başlık ve Yeni Ekle Butonu */}
+            {/* Üst Başlık, Toplu Sil ve Yeni Ekle Butonları */}
             <HStack justify="space-between" mb={6}>
                 <Heading size="lg" color="gray.800">
                     Hesap Yönetimi
                 </Heading>
-                <Button colorPalette="red" onClick={() => handleOpenModal()}>
-                    <FiPlus style={{ marginRight: '8px' }} /> Yeni Hesap Ekle
-                </Button>
+                <HStack gap={3}>
+                    {/* Yalnızca kutucuk seçildiğinde beliren Toplu Sil Butonu */}
+                    {selectedIds.length > 0 && (
+                        <Button
+                            colorPalette="red"
+                            variant="subtle"
+                            onClick={() => setIsBulkDeleteOpen(true)}
+                        >
+                            <FiTrash2 style={{ marginRight: '8px' }} />
+                            Seçilenleri Sil ({selectedIds.length})
+                        </Button>
+                    )}
+                    <Button colorPalette="red" onClick={() => handleOpenModal()}>
+                        <FiPlus style={{ marginRight: '8px' }} /> Yeni Hesap Ekle
+                    </Button>
+                </HStack>
             </HStack>
 
             {/* Fuse.js Arama Çubuğu */}
@@ -234,6 +290,15 @@ export default function AccountsPage() {
                 <Table.Root variant="line" interactive>
                     <Table.Header bg="gray.100">
                         <Table.Row>
+                            {/* TÜMÜNÜ SEÇ KUTUCUĞU */}
+                            <Table.ColumnHeader width="50px">
+                                <input
+                                    type="checkbox"
+                                    checked={Boolean(accounts && accounts.length > 0 && selectedIds.length === accounts.length)}
+                                    onChange={handleSelectAll}
+                                    style={{ width: '18px', height: '18px', cursor: 'pointer' }}
+                                />
+                            </Table.ColumnHeader>
                             <Table.ColumnHeader>ID</Table.ColumnHeader>
                             <Table.ColumnHeader>Hesap Kodu</Table.ColumnHeader>
                             <Table.ColumnHeader>Şube ID</Table.ColumnHeader>
@@ -245,43 +310,57 @@ export default function AccountsPage() {
                     </Table.Header>
                     <Table.Body>
                         {filteredAccounts && filteredAccounts.length > 0 ? (
-                            filteredAccounts.map((acc) => (
-                                <Table.Row key={acc.id}>
-                                    <Table.Cell>{acc.id}</Table.Cell>
-                                    <Table.Cell fontWeight="bold">{acc.accountId || '-'}</Table.Cell>
-                                    <Table.Cell>{acc.branchId || '-'}</Table.Cell>
-                                    <Table.Cell>{acc.customerId || '-'}</Table.Cell>
-                                    <Table.Cell>{acc.fullname || '-'}</Table.Cell>
-                                    <Table.Cell>
-                                        <Badge colorPalette={acc.defaultAccount ? 'green' : 'gray'}>
-                                            {acc.defaultAccount ? 'EVET' : 'HAYIR'}
-                                        </Badge>
-                                    </Table.Cell>
-                                    <Table.Cell textAlign="center">
-                                        <HStack justify="center" gap={2}>
-                                            <Button
-                                                size="sm"
-                                                variant="ghost"
-                                                colorPalette="blue"
-                                                onClick={() => handleOpenModal(acc)}
-                                            >
-                                                <FiEdit2 />
-                                            </Button>
-                                            <Button
-                                                size="sm"
-                                                variant="ghost"
-                                                colorPalette="red"
-                                                onClick={() => handleOpenDeleteModal(acc)}
-                                            >
-                                                <FiTrash2 />
-                                            </Button>
-                                        </HStack>
-                                    </Table.Cell>
-                                </Table.Row>
-                            ))
+                            filteredAccounts.map((acc) => {
+                                const isSelected = acc.id !== undefined && selectedIds.includes(acc.id);
+                                return (
+                                    <Table.Row key={acc.id} bg={isSelected ? 'red.50' : 'transparent'}>
+                                        {/* TEKİL KUTUCUK (CHECKBOX) */}
+                                        <Table.Cell>
+                                            {acc.id !== undefined && (
+                                                <input
+                                                    type="checkbox"
+                                                    checked={isSelected}
+                                                    onChange={() => handleSelectRow(acc.id!)}
+                                                    style={{ width: '18px', height: '18px', cursor: 'pointer' }}
+                                                />
+                                            )}
+                                        </Table.Cell>
+                                        <Table.Cell>{acc.id}</Table.Cell>
+                                        <Table.Cell fontWeight="bold">{acc.accountId || '-'}</Table.Cell>
+                                        <Table.Cell>{acc.branchId || '-'}</Table.Cell>
+                                        <Table.Cell>{acc.customerId || '-'}</Table.Cell>
+                                        <Table.Cell>{acc.fullname || '-'}</Table.Cell>
+                                        <Table.Cell>
+                                            <Badge colorPalette={acc.defaultAccount ? 'green' : 'gray'}>
+                                                {acc.defaultAccount ? 'EVET' : 'HAYIR'}
+                                            </Badge>
+                                        </Table.Cell>
+                                        <Table.Cell textAlign="center">
+                                            <HStack justify="center" gap={2}>
+                                                <Button
+                                                    size="sm"
+                                                    variant="ghost"
+                                                    colorPalette="blue"
+                                                    onClick={() => handleOpenModal(acc)}
+                                                >
+                                                    <FiEdit2 />
+                                                </Button>
+                                                <Button
+                                                    size="sm"
+                                                    variant="ghost"
+                                                    colorPalette="red"
+                                                    onClick={() => handleOpenDeleteModal(acc)}
+                                                >
+                                                    <FiTrash2 />
+                                                </Button>
+                                            </HStack>
+                                        </Table.Cell>
+                                    </Table.Row>
+                                );
+                            })
                         ) : (
                             <Table.Row>
-                                <Table.Cell colSpan={7} textAlign="center" py={6} color="gray.500">
+                                <Table.Cell colSpan={8} textAlign="center" py={6} color="gray.500">
                                     Arama kriterlerine uygun hesap bulunamadı.
                                 </Table.Cell>
                             </Table.Row>
@@ -325,13 +404,13 @@ export default function AccountsPage() {
                                         )}
                                     </Field.Root>
 
-                                    <Field.Root required>
-                                        <Field.Label fontWeight="medium">Müşteri ID</Field.Label>
-                                        <Input
-                                            type="number"
+                                    {/* Müşteri Seçim Açılır Menüsü (CustomerSelect) */}
+                                    <Field.Root required invalid={!formData.customerId && Boolean(formData.accountId)}>
+                                        <Field.Label fontWeight="medium">Müşteri Seçin</Field.Label>
+                                        <CustomerSelect
                                             value={formData.customerId}
-                                            onChange={(e) => setFormData({ ...formData, customerId: e.target.value })}
-                                            disabled={Boolean(selectedAccount)}
+                                            onChange={(val) => setFormData({ ...formData, customerId: val })}
+                                            isDisabled={Boolean(selectedAccount)}
                                         />
                                     </Field.Root>
 
@@ -374,7 +453,7 @@ export default function AccountsPage() {
                 </Dialog.Positioner>
             </Dialog.Root>
 
-            {/* Özel Silme Onay Modalı */}
+            {/* Tekil Silme Onay Modalı */}
             <Dialog.Root open={isDeleteOpen} onOpenChange={(e) => setIsDeleteOpen(e.open)}>
                 <Dialog.Backdrop bg="blackAlpha.600" />
                 <Dialog.Positioner p={{ base: 3, md: 6 }}>
@@ -405,6 +484,44 @@ export default function AccountsPage() {
                                     loading={isDeleting}
                                 >
                                     Evet, Sil
+                                </Button>
+                            </HStack>
+                        </Dialog.Footer>
+                    </Dialog.Content>
+                </Dialog.Positioner>
+            </Dialog.Root>
+
+            {/* TOPLU HESAP SİLME ONAY MODALI */}
+            <Dialog.Root open={isBulkDeleteOpen} onOpenChange={(e) => setIsBulkDeleteOpen(e.open)}>
+                <Dialog.Backdrop bg="blackAlpha.600" />
+                <Dialog.Positioner p={{ base: 3, md: 6 }}>
+                    <Dialog.Content rounded="xl" shadow="2xl" maxW="450px" w="full" mx="auto" p={3}>
+                        <Dialog.Header borderBottomWidth="1px" pb={3}>
+                            <HStack gap={2}>
+                                <FiAlertTriangle size={22} color="#E53E3E" />
+                                <Dialog.Title fontSize="lg" fontWeight="bold" color="red.600">
+                                    Toplu Hesap Silme Onayı
+                                </Dialog.Title>
+                            </HStack>
+                        </Dialog.Header>
+
+                        <Dialog.Body py={4}>
+                            <Text fontSize="sm" color="gray.700">
+                                Seçmiş olduğunuz <strong>{selectedIds.length} adet</strong> hesabı silmek istediğinizden emin misiniz? Bu işlem geri alınamaz.
+                            </Text>
+                        </Dialog.Body>
+
+                        <Dialog.Footer borderTopWidth="1px" pt={3}>
+                            <HStack justify="flex-end" gap={3} w="full">
+                                <Button variant="outline" onClick={() => setIsBulkDeleteOpen(false)}>
+                                    Vazgeç
+                                </Button>
+                                <Button
+                                    colorPalette="red"
+                                    onClick={handleConfirmBulkDelete}
+                                    loading={isBulkDeleting}
+                                >
+                                    Evet, Hepsini Sil
                                 </Button>
                             </HStack>
                         </Dialog.Footer>

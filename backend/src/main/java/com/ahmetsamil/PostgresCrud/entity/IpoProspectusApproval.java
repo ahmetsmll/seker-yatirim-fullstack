@@ -7,17 +7,11 @@ import java.time.LocalDateTime;
 @Entity
 @Table(name = "ipo_prospectus_approval")
 @Data
-public class IpoProspectusApproval {
+public class IpoProspectusApproval extends BaseEntity {
 
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
-
-    @Column(name = "created_date", nullable = false)
-    private LocalDateTime createdDate;
-
-    @Column(name = "updated_date")
-    private LocalDateTime updatedDate;
 
     @Column(name = "approved", nullable = false)
     private Boolean approved;

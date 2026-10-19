@@ -249,7 +249,7 @@ export default function BusinessHoursPage() {
                                     <Table.Cell fontWeight="bold">{item.startTime}</Table.Cell>
                                     <Table.Cell fontWeight="bold">{item.endTime}</Table.Cell>
                                     <Table.Cell>
-                                        <Badge colorPalette={item.lunchBreakEnabled ? 'green' : 'gray'}>
+                                        <Badge colorPalette={item.lunchBreakEnabled ? 'green' : 'red'}>
                                             {item.lunchBreakEnabled ? 'AKTİF' : 'PASİF'}
                                         </Badge>
                                     </Table.Cell>

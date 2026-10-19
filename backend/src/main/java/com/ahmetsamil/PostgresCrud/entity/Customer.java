@@ -8,17 +8,12 @@ import java.time.LocalDateTime;
 @Entity
 @Table(name = "customer")
 @Data
-public class Customer {
+public class Customer extends BaseEntity {
 
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
 
-    @Column(name = "created_date", nullable = false)
-    private LocalDateTime createdDate;
-
-    @Column(name = "updated_date")
-    private LocalDateTime updatedDate;
 
     @Column(name = "customer_id", nullable = false, unique = true)
     private Long customerId;

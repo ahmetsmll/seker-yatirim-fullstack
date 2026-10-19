@@ -7,17 +7,12 @@ import java.time.LocalDateTime;
 @Entity
 @Table(name = "customer_address")
 @Data
-public class CustomerAddress {
+public class CustomerAddress extends BaseEntity {
 
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
 
-    @Column(name = "created_date", nullable = false)
-    private LocalDateTime createdDate;
-
-    @Column(name = "updated_date")
-    private LocalDateTime updatedDate;
 
     @Column(name = "address")
     private String address;

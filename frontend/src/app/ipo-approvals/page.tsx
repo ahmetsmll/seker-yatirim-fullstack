@@ -23,6 +23,8 @@ import {
     useCreateIpoApprovalMutation,
     useUpdateIpoApprovalMutation,
     useDeleteIpoApprovalMutation,
+    useDeleteMultipleIpoApprovalsMutation,
+    useApproveMultipleIpoApprovalsMutation,
 } from '@/store/api/apiSlice';
 import { IpoApproval } from '@/types';
 
@@ -32,15 +34,22 @@ export default function IpoApprovalsPage() {
     const [createIpoApproval, { isLoading: isCreating }] = useCreateIpoApprovalMutation();
     const [updateIpoApproval, { isLoading: isUpdating }] = useUpdateIpoApprovalMutation();
     const [deleteIpoApproval, { isLoading: isDeleting }] = useDeleteIpoApprovalMutation();
+    const [deleteMultipleIpoApprovals, { isLoading: isBulkDeleting }] = useDeleteMultipleIpoApprovalsMutation();
+    const [approveMultipleIpoApprovals, { isLoading: isBulkApproving }] = useApproveMultipleIpoApprovalsMutation();
 
     // State Yönetimi
     const [searchTerm, setSearchTerm] = useState('');
     const [isOpen, setIsOpen] = useState(false);
     const [selectedItem, setSelectedItem] = useState<IpoApproval | null>(null);
 
-    // Silme Modalı State'leri
+    // Tekil Silme Modalı State'leri
     const [isDeleteOpen, setIsDeleteOpen] = useState(false);
     const [itemToDelete, setItemToDelete] = useState<IpoApproval | null>(null);
+
+    // Toplu İşlem State'leri (Kutucuk Seçimleri)
+    const [selectedIds, setSelectedIds] = useState<number[]>([]);
+    const [isBulkDeleteOpen, setIsBulkDeleteOpen] = useState(false);
+    const [isBulkApproveOpen, setIsBulkApproveOpen] = useState(false);
 
     // Sayfa Ortasındaki Bildirim Modalı State'i
     const [feedbackModal, setFeedbackModal] = useState<{
@@ -71,6 +80,61 @@ export default function IpoApprovalsPage() {
         clientIp: '',
         deviceId: '',
     });
+
+    // --- KUTUCUK (CHECKBOX) SEÇİM MANTIKLARI ---
+    const handleSelectRow = (id: number) => {
+        if (selectedIds.includes(id)) {
+            setSelectedIds(selectedIds.filter((itemId) => itemId !== id));
+        } else {
+            setSelectedIds([...selectedIds, id]);
+        }
+    };
+
+    const handleSelectAll = () => {
+        if (!ipoApprovals) return;
+        if (selectedIds.length === ipoApprovals.length) {
+            setSelectedIds([]);
+        } else {
+            const allIds = ipoApprovals.map((item) => item.id).filter((id): id is number => id !== undefined);
+            setSelectedIds(allIds);
+        }
+    };
+
+    // Toplu Silme İşlemi
+    const handleConfirmBulkDelete = async () => {
+        if (selectedIds.length === 0) return;
+
+        try {
+            await deleteMultipleIpoApprovals(selectedIds).unwrap();
+            setIsBulkDeleteOpen(false);
+            triggerFeedback(
+                'Onay Kayıtları Silindi',
+                `Seçilen ${selectedIds.length} adet halka arz onay kaydı başarıyla silindi.`,
+                'delete'
+            );
+            setSelectedIds([]);
+        } catch (err) {
+            console.error('Toplu silme başarısız:', err);
+        }
+    };
+
+    // Toplu Onaylama İşlemi
+    const handleConfirmBulkApprove = async () => {
+        if (selectedIds.length === 0) return;
+
+        try {
+            await approveMultipleIpoApprovals(selectedIds).unwrap();
+            setIsBulkApproveOpen(false);
+            triggerFeedback(
+                'Toplu Onay Tamamlandı',
+                `Seçilen ${selectedIds.length} adet halka arz izahnamesi başarıyla onaylandı.`,
+                'success'
+            );
+            setSelectedIds([]);
+        } catch (err) {
+            console.error('Toplu onaylama başarısız:', err);
+        }
+    };
 
     // Mükerrer Onay Kontrolü (Aynı Müşteri + Aynı Halka Arz)
     const otherApprovals = useMemo(() => {
@@ -220,14 +284,37 @@ export default function IpoApprovalsPage() {
 
     return (
         <Box position="relative">
-            {/* Üst Başlık ve Yeni Ekle Butonu */}
+            {/* Üst Başlık ve Butonlar */}
             <HStack justify="space-between" mb={6}>
                 <Heading size="lg" color="gray.800">
                     Halka Arz İzahname Onayları
                 </Heading>
-                <Button colorPalette="red" onClick={() => handleOpenModal()}>
-                    <FiPlus style={{ marginRight: '8px' }} /> Yeni Onay Ekle
-                </Button>
+                <HStack gap={3}>
+                    {/* Seçilen Kayıt Varsa Beliren Toplu İşlem Butonları */}
+                    {selectedIds.length > 0 && (
+                        <>
+                            <Button
+                                colorPalette="green"
+                                onClick={() => setIsBulkApproveOpen(true)}
+                            >
+                                <FiCheckCircle style={{ marginRight: '8px' }} />
+                                Seçilenleri Onayla ({selectedIds.length})
+                            </Button>
+
+                            <Button
+                                colorPalette="red"
+                                variant="subtle"
+                                onClick={() => setIsBulkDeleteOpen(true)}
+                            >
+                                <FiTrash2 style={{ marginRight: '8px' }} />
+                                Seçilenleri Sil ({selectedIds.length})
+                            </Button>
+                        </>
+                    )}
+                    <Button colorPalette="red" onClick={() => handleOpenModal()}>
+                        <FiPlus style={{ marginRight: '8px' }} /> Yeni Onay Ekle
+                    </Button>
+                </HStack>
             </HStack>
 
             {/* Fuse.js Arama Çubuğu */}
@@ -248,6 +335,15 @@ export default function IpoApprovalsPage() {
                 <Table.Root variant="line" interactive>
                     <Table.Header bg="gray.100">
                         <Table.Row>
+                            {/* TÜMÜNÜ SEÇ KUTUCUĞU */}
+                            <Table.ColumnHeader width="50px">
+                                <input
+                                    type="checkbox"
+                                    checked={Boolean(ipoApprovals && ipoApprovals.length > 0 && selectedIds.length === ipoApprovals.length)}
+                                    onChange={handleSelectAll}
+                                    style={{ width: '18px', height: '18px', cursor: 'pointer' }}
+                                />
+                            </Table.ColumnHeader>
                             <Table.ColumnHeader>ID</Table.ColumnHeader>
                             <Table.ColumnHeader>Müşteri ID</Table.ColumnHeader>
                             <Table.ColumnHeader>Halka Arz ID</Table.ColumnHeader>
@@ -260,48 +356,62 @@ export default function IpoApprovalsPage() {
                     </Table.Header>
                     <Table.Body>
                         {filteredApprovals && filteredApprovals.length > 0 ? (
-                            filteredApprovals.map((item) => (
-                                <Table.Row key={item.id}>
-                                    <Table.Cell>{item.id}</Table.Cell>
-                                    <Table.Cell fontWeight="bold">{item.customerId}</Table.Cell>
-                                    <Table.Cell>{item.ipoId}</Table.Cell>
-                                    <Table.Cell>
-                                        <Badge colorPalette={item.approved ? 'green' : 'red'}>
-                                            {item.approved ? 'ONAYLANDI' : 'ONAYLANMADI'}
-                                        </Badge>
-                                    </Table.Cell>
-                                    <Table.Cell>
-                                        {item.approvedAt
-                                            ? new Date(item.approvedAt).toLocaleString('tr-TR')
-                                            : '-'}
-                                    </Table.Cell>
-                                    <Table.Cell>{item.clientIp || '-'}</Table.Cell>
-                                    <Table.Cell maxW="150px" truncate>{item.deviceId || '-'}</Table.Cell>
-                                    <Table.Cell textAlign="center">
-                                        <HStack justify="center" gap={2}>
-                                            <Button
-                                                size="sm"
-                                                variant="ghost"
-                                                colorPalette="blue"
-                                                onClick={() => handleOpenModal(item)}
-                                            >
-                                                <FiEdit2 />
-                                            </Button>
-                                            <Button
-                                                size="sm"
-                                                variant="ghost"
-                                                colorPalette="red"
-                                                onClick={() => handleOpenDeleteModal(item)}
-                                            >
-                                                <FiTrash2 />
-                                            </Button>
-                                        </HStack>
-                                    </Table.Cell>
-                                </Table.Row>
-                            ))
+                            filteredApprovals.map((item) => {
+                                const isSelected = item.id !== undefined && selectedIds.includes(item.id);
+                                return (
+                                    <Table.Row key={item.id} bg={isSelected ? 'red.50' : 'transparent'}>
+                                        {/* TEKİL KUTUCUK (CHECKBOX) */}
+                                        <Table.Cell>
+                                            {item.id !== undefined && (
+                                                <input
+                                                    type="checkbox"
+                                                    checked={isSelected}
+                                                    onChange={() => handleSelectRow(item.id!)}
+                                                    style={{ width: '18px', height: '18px', cursor: 'pointer' }}
+                                                />
+                                            )}
+                                        </Table.Cell>
+                                        <Table.Cell>{item.id}</Table.Cell>
+                                        <Table.Cell fontWeight="bold">{item.customerId}</Table.Cell>
+                                        <Table.Cell>{item.ipoId}</Table.Cell>
+                                        <Table.Cell>
+                                            <Badge colorPalette={item.approved ? 'green' : 'red'}>
+                                                {item.approved ? 'ONAYLANDI' : 'ONAYLANMADI'}
+                                            </Badge>
+                                        </Table.Cell>
+                                        <Table.Cell>
+                                            {item.approvedAt
+                                                ? new Date(item.approvedAt).toLocaleString('tr-TR')
+                                                : '-'}
+                                        </Table.Cell>
+                                        <Table.Cell>{item.clientIp || '-'}</Table.Cell>
+                                        <Table.Cell maxW="150px" truncate>{item.deviceId || '-'}</Table.Cell>
+                                        <Table.Cell textAlign="center">
+                                            <HStack justify="center" gap={2}>
+                                                <Button
+                                                    size="sm"
+                                                    variant="ghost"
+                                                    colorPalette="blue"
+                                                    onClick={() => handleOpenModal(item)}
+                                                >
+                                                    <FiEdit2 />
+                                                </Button>
+                                                <Button
+                                                    size="sm"
+                                                    variant="ghost"
+                                                    colorPalette="red"
+                                                    onClick={() => handleOpenDeleteModal(item)}
+                                                >
+                                                    <FiTrash2 />
+                                                </Button>
+                                            </HStack>
+                                        </Table.Cell>
+                                    </Table.Row>
+                                );
+                            })
                         ) : (
                             <Table.Row>
-                                <Table.Cell colSpan={8} textAlign="center" py={6} color="gray.500">
+                                <Table.Cell colSpan={9} textAlign="center" py={6} color="gray.500">
                                     Arama kriterlerine uygun onay kaydı bulunamadı.
                                 </Table.Cell>
                             </Table.Row>
@@ -400,7 +510,6 @@ export default function IpoApprovalsPage() {
                                         </Field.Root>
                                     </Box>
 
-                                    {/* Kırmızı Temalı Onay Durumu Segmented Button */}
                                     <Box gridColumn={{ md: 'span 2' }}>
                                         <Field.Root required>
                                             <Field.Label fontWeight="medium">Onay Durumu</Field.Label>
@@ -472,7 +581,7 @@ export default function IpoApprovalsPage() {
                 </Dialog.Positioner>
             </Dialog.Root>
 
-            {/* Özel Silme Onay Modalı */}
+            {/* Tekil Silme Onay Modalı */}
             <Dialog.Root open={isDeleteOpen} onOpenChange={(e) => setIsDeleteOpen(e.open)}>
                 <Dialog.Backdrop bg="blackAlpha.600" />
                 <Dialog.Positioner p={{ base: 3, md: 6 }}>
@@ -503,6 +612,82 @@ export default function IpoApprovalsPage() {
                                     loading={isDeleting}
                                 >
                                     Evet, Sil
+                                </Button>
+                            </HStack>
+                        </Dialog.Footer>
+                    </Dialog.Content>
+                </Dialog.Positioner>
+            </Dialog.Root>
+
+            {/* TOPLU ONAYLAMA MODALI */}
+            <Dialog.Root open={isBulkApproveOpen} onOpenChange={(e) => setIsBulkApproveOpen(e.open)}>
+                <Dialog.Backdrop bg="blackAlpha.600" />
+                <Dialog.Positioner p={{ base: 3, md: 6 }}>
+                    <Dialog.Content rounded="xl" shadow="2xl" maxW="450px" w="full" mx="auto" p={3}>
+                        <Dialog.Header borderBottomWidth="1px" pb={3}>
+                            <HStack gap={2}>
+                                <FiCheckCircle size={22} color="#38A169" />
+                                <Dialog.Title fontSize="lg" fontWeight="bold" color="green.600">
+                                    Toplu İzahname Onayı
+                                </Dialog.Title>
+                            </HStack>
+                        </Dialog.Header>
+
+                        <Dialog.Body py={4}>
+                            <Text fontSize="sm" color="gray.700">
+                                Seçmiş olduğunuz <strong>{selectedIds.length} adet</strong> halka arz izahnamesini onaylamak istediğinizden emin misiniz?
+                            </Text>
+                        </Dialog.Body>
+
+                        <Dialog.Footer borderTopWidth="1px" pt={3}>
+                            <HStack justify="flex-end" gap={3} w="full">
+                                <Button variant="outline" onClick={() => setIsBulkApproveOpen(false)}>
+                                    Vazgeç
+                                </Button>
+                                <Button
+                                    colorPalette="green"
+                                    onClick={handleConfirmBulkApprove}
+                                    loading={isBulkApproving}
+                                >
+                                    Evet, Hepsini Onayla
+                                </Button>
+                            </HStack>
+                        </Dialog.Footer>
+                    </Dialog.Content>
+                </Dialog.Positioner>
+            </Dialog.Root>
+
+            {/* TOPLU SİLME MODALI */}
+            <Dialog.Root open={isBulkDeleteOpen} onOpenChange={(e) => setIsBulkDeleteOpen(e.open)}>
+                <Dialog.Backdrop bg="blackAlpha.600" />
+                <Dialog.Positioner p={{ base: 3, md: 6 }}>
+                    <Dialog.Content rounded="xl" shadow="2xl" maxW="450px" w="full" mx="auto" p={3}>
+                        <Dialog.Header borderBottomWidth="1px" pb={3}>
+                            <HStack gap={2}>
+                                <FiAlertTriangle size={22} color="#E53E3E" />
+                                <Dialog.Title fontSize="lg" fontWeight="bold" color="red.600">
+                                    Toplu Silme Onayı
+                                </Dialog.Title>
+                            </HStack>
+                        </Dialog.Header>
+
+                        <Dialog.Body py={4}>
+                            <Text fontSize="sm" color="gray.700">
+                                Seçmiş olduğunuz <strong>{selectedIds.length} adet</strong> onay kaydını silmek istediğinizden emin misiniz? Bu işlem geri alınamaz.
+                            </Text>
+                        </Dialog.Body>
+
+                        <Dialog.Footer borderTopWidth="1px" pt={3}>
+                            <HStack justify="flex-end" gap={3} w="full">
+                                <Button variant="outline" onClick={() => setIsBulkDeleteOpen(false)}>
+                                    Vazgeç
+                                </Button>
+                                <Button
+                                    colorPalette="red"
+                                    onClick={handleConfirmBulkDelete}
+                                    loading={isBulkDeleting}
+                                >
+                                    Evet, Hepsini Sil
                                 </Button>
                             </HStack>
                         </Dialog.Footer>

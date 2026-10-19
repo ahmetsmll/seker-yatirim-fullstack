@@ -50,4 +50,10 @@ public class AccountController {
         accountService.deleteAccount(id);
         return ResponseEntity.noContent().build();
     }
+
+    @DeleteMapping("/batch")
+    public ResponseEntity<Void> deleteMultipleAccounts(@RequestBody List<Long> ids) {
+        accountService.deleteMultipleAccounts(ids);
+        return ResponseEntity.noContent().build();
+    }
 }

@@ -4,6 +4,7 @@ import com.ahmetsamil.PostgresCrud.entity.Account;
 import com.ahmetsamil.PostgresCrud.exception.ResourceNotFoundException;
 import com.ahmetsamil.PostgresCrud.repository.AccountRepository;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDateTime;
 import java.util.List;
@@ -54,4 +55,12 @@ public class AccountService {
         Account existing = getAccountById(id);
         accountRepository.delete(existing);
     }
+
+    @Transactional
+    public void deleteMultipleAccounts(List<Long> ids) {
+        if (ids != null && !ids.isEmpty()) {
+            accountRepository.deleteAllByIdInBatch(ids);
+        }
+    }
+
 }

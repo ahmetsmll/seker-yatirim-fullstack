@@ -1,10 +1,12 @@
 package com.ahmetsamil.PostgresCrud.service;
 
+import com.ahmetsamil.PostgresCrud.dto.CustomerLookupDto;
 import com.ahmetsamil.PostgresCrud.entity.Customer;
 import com.ahmetsamil.PostgresCrud.exception.ResourceNotFoundException;
 import com.ahmetsamil.PostgresCrud.repository.CustomerRepository;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.server.ResponseStatusException;
 
 import java.time.LocalDateTime;
@@ -32,6 +34,16 @@ public class CustomerService {
         return customerRepository.save(customer);
     }
 
+    @Transactional
+    public void deleteMultipleCustomers(List<Long> ids) {
+        if (ids != null && !ids.isEmpty()) {
+            customerRepository.deleteAllByIdInBatch(ids);
+        }
+    }
+
+    public List<CustomerLookupDto> getCustomerLookupList() {
+        return customerRepository.findAllCustomerLookup();
+    }
     public Customer updateCustomer(Long id , Customer updatedCustomer) {
         Customer existingCustomer = getCustomerById(id);
 

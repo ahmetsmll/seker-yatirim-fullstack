@@ -1,6 +1,6 @@
 'use client';
 
-import { useState , useMemo} from 'react';
+import { useState, useMemo } from 'react';
 import {
     Box,
     Heading,
@@ -23,6 +23,7 @@ import {
     useCreateCustomerMutation,
     useUpdateCustomerMutation,
     useDeleteCustomerMutation,
+    useDeleteMultipleCustomersMutation
 } from '@/store/api/apiSlice';
 import { Customer } from '@/types';
 
@@ -32,15 +33,20 @@ export default function CustomersPage() {
     const [createCustomer, { isLoading: isCreating }] = useCreateCustomerMutation();
     const [updateCustomer, { isLoading: isUpdating }] = useUpdateCustomerMutation();
     const [deleteCustomer, { isLoading: isDeleting }] = useDeleteCustomerMutation();
+    const [deleteMultipleCustomers, { isLoading: isBulkDeleting }] = useDeleteMultipleCustomersMutation();
 
     // State Yönetimi
     const [searchTerm, setSearchTerm] = useState('');
     const [isOpen, setIsOpen] = useState(false);
     const [selectedCustomer, setSelectedCustomer] = useState<Customer | null>(null);
 
-    // Silme Modalı State'leri
+    // Tekil Silme Modalı State'leri
     const [isDeleteOpen, setIsDeleteOpen] = useState(false);
     const [customerToDelete, setCustomerToDelete] = useState<Customer | null>(null);
+
+    // Toplu Silme State'leri (Kutucuk Seçimleri)
+    const [selectedIds, setSelectedIds] = useState<number[]>([]);
+    const [isBulkDeleteOpen, setIsBulkDeleteOpen] = useState(false);
 
     // Sayfanın Ortasında Açılan İşlem Sonucu Modalı (Feedback Popup)
     const [feedbackModal, setFeedbackModal] = useState<{
@@ -72,6 +78,42 @@ export default function CustomersPage() {
         trIdentityNo: '',
     });
 
+    // --- KUTUCUK (CHECKBOX) SEÇİM MANTIKLARI ---
+    const handleSelectRow = (id: number) => {
+        if (selectedIds.includes(id)) {
+            setSelectedIds(selectedIds.filter((itemId) => itemId !== id));
+        } else {
+            setSelectedIds([...selectedIds, id]);
+        }
+    };
+
+    const handleSelectAll = () => {
+        if (!customers) return;
+        if (selectedIds.length === customers.length) {
+            setSelectedIds([]);
+        } else {
+            const allIds = customers.map((c) => c.id).filter((id): id is number => id !== undefined);
+            setSelectedIds(allIds);
+        }
+    };
+
+    const handleConfirmBulkDelete = async () => {
+        if (selectedIds.length === 0) return;
+
+        try {
+            await deleteMultipleCustomers(selectedIds).unwrap();
+            setIsBulkDeleteOpen(false);
+            triggerFeedback(
+                'Müşteriler Silindi',
+                `Seçilen ${selectedIds.length} adet müşteri kaydı başarıyla silindi.`,
+                'delete'
+            );
+            setSelectedIds([]);
+        } catch (err) {
+            console.error('Toplu silme başarısız:', err);
+        }
+    };
+
     // Mükerrer Kayıt Kontrol Mantığı
     const otherCustomers = customers?.filter((c) =>
         selectedCustomer ? c.customerId !== selectedCustomer.customerId : true
@@ -94,7 +136,6 @@ export default function CustomersPage() {
         otherCustomers.some((c) => c.cellPhoneNumber?.trim() === formData.cellPhoneNumber.trim())
     );
 
-
     const isInvalidTcNo = Boolean(
         formData.trIdentityNo.trim() &&
         (formData.trIdentityNo.trim().length !== 11 || !/^\d+$/.test(formData.trIdentityNo.trim()))
@@ -104,7 +145,6 @@ export default function CustomersPage() {
         formData.cellPhoneNumber.trim() &&
         (formData.cellPhoneNumber.trim().length !== 11 || !/^\d+$/.test(formData.cellPhoneNumber.trim()))
     );
-
 
     const hasValidationErrors = isDuplicateCustomerId || isDuplicateEmail || isDuplicatePhone || isInvalidTcNo || isInvalidPhone;
 
@@ -208,22 +248,16 @@ export default function CustomersPage() {
                 { name: 'trIdentityNo', weight: 0.1 },
                 { name: 'customerId', weight: 0.1 },
             ],
-            threshold: 0.1, // Bulanıklık eşiği (0.0 tam eşleşme, 1.0 çok esnek)
+            threshold: 0.1,
             minMatchCharLength: 1,
         });
     }, [customers]);
 
-// 2. Arama Terimine Göre Sonuçların Filtrelenmesi
     const filteredCustomers = useMemo(() => {
-        // Arama çubuğu boşsa tüm müşterileri göster
         if (!searchTerm.trim()) return customers || [];
         if (!fuse) return [];
-
-        // Fuse arama yapar ve sonuçları { item, score, ... } şeklinde döndürür
         return fuse.search(searchTerm.trim()).map((result) => result.item);
-    }, [searchTerm, fuse, customers]
-
-    );
+    }, [searchTerm, fuse, customers]);
 
     if (isLoading) {
         return (
@@ -239,14 +273,27 @@ export default function CustomersPage() {
 
     return (
         <Box position="relative">
-            {/* Üst Başlık ve Ekle Butonu */}
+            {/* Üst Başlık, Toplu Sil ve Ekle Butonları */}
             <HStack justify="space-between" mb={6}>
                 <Heading size="lg" color="gray.800">
                     Müşteri Yönetimi
                 </Heading>
-                <Button colorPalette="red" onClick={() => handleOpenModal()}>
-                    <FiPlus style={{ marginRight: '8px' }} /> Yeni Müşteri Ekle
-                </Button>
+                <HStack gap={3}>
+                    {/* Yalnızca kutucuk seçimi yapıldığında gözüken Toplu Sil Butonu */}
+                    {selectedIds.length > 0 && (
+                        <Button
+                            colorPalette="red"
+                            variant="subtle"
+                            onClick={() => setIsBulkDeleteOpen(true)}
+                        >
+                            <FiTrash2 style={{ marginRight: '8px' }} />
+                            Seçilenleri Sil ({selectedIds.length})
+                        </Button>
+                    )}
+                    <Button colorPalette="red" onClick={() => handleOpenModal()}>
+                        <FiPlus style={{ marginRight: '8px' }} /> Yeni Müşteri Ekle
+                    </Button>
+                </HStack>
             </HStack>
 
             {/* Arama Çubuğu */}
@@ -267,6 +314,15 @@ export default function CustomersPage() {
                 <Table.Root variant="line" interactive>
                     <Table.Header bg="gray.100">
                         <Table.Row>
+                            {/* TÜMÜNÜ SEÇ KUTUCUĞU */}
+                            <Table.ColumnHeader width="50px">
+                                <input
+                                    type="checkbox"
+                                    checked={Boolean(customers && customers.length > 0 && selectedIds.length === customers.length)}
+                                    onChange={handleSelectAll}
+                                    style={{ width: '18px', height: '18px', cursor: 'pointer' }}
+                                />
+                            </Table.ColumnHeader>
                             <Table.ColumnHeader>ID</Table.ColumnHeader>
                             <Table.ColumnHeader>Müşteri No</Table.ColumnHeader>
                             <Table.ColumnHeader>Ad</Table.ColumnHeader>
@@ -280,45 +336,59 @@ export default function CustomersPage() {
                     </Table.Header>
                     <Table.Body>
                         {filteredCustomers && filteredCustomers.length > 0 ? (
-                            filteredCustomers.map((c) => (
-                                <Table.Row key={c.id}>
-                                    <Table.Cell>{c.id}</Table.Cell>
-                                    <Table.Cell fontWeight="bold">{c.customerId}</Table.Cell>
-                                    <Table.Cell>{c.firstName}</Table.Cell>
-                                    <Table.Cell>{c.lastName}</Table.Cell>
-                                    <Table.Cell>{c.trIdentityNo || '-'}</Table.Cell>
-                                    <Table.Cell>{c.emailAddress || '-'}</Table.Cell>
-                                    <Table.Cell>{c.cellPhoneNumber || '-'}</Table.Cell>
-                                    <Table.Cell>
-                                        <Badge colorPalette={c.lastSyncStatus === 'SUCCESS' ? 'green' : 'red'}>
-                                            {c.lastSyncStatus || 'ACTIVE'}
-                                        </Badge>
-                                    </Table.Cell>
-                                    <Table.Cell textAlign="center">
-                                        <HStack justify="center" gap={2}>
-                                            <Button
-                                                size="sm"
-                                                variant="ghost"
-                                                colorPalette="blue"
-                                                onClick={() => handleOpenModal(c)}
-                                            >
-                                                <FiEdit2 />
-                                            </Button>
-                                            <Button
-                                                size="sm"
-                                                variant="ghost"
-                                                colorPalette="red"
-                                                onClick={() => handleOpenDeleteModal(c)}
-                                            >
-                                                <FiTrash2 />
-                                            </Button>
-                                        </HStack>
-                                    </Table.Cell>
-                                </Table.Row>
-                            ))
+                            filteredCustomers.map((c) => {
+                                const isSelected = c.id !== undefined && selectedIds.includes(c.id);
+                                return (
+                                    <Table.Row key={c.id} bg={isSelected ? 'red.50' : 'transparent'}>
+                                        {/* TEKİL KUTUCUK (CHECKBOX) */}
+                                        <Table.Cell>
+                                            {c.id !== undefined && (
+                                                <input
+                                                    type="checkbox"
+                                                    checked={isSelected}
+                                                    onChange={() => handleSelectRow(c.id!)}
+                                                    style={{ width: '18px', height: '18px', cursor: 'pointer' }}
+                                                />
+                                            )}
+                                        </Table.Cell>
+                                        <Table.Cell>{c.id}</Table.Cell>
+                                        <Table.Cell fontWeight="bold">{c.customerId}</Table.Cell>
+                                        <Table.Cell>{c.firstName}</Table.Cell>
+                                        <Table.Cell>{c.lastName}</Table.Cell>
+                                        <Table.Cell>{c.trIdentityNo || '-'}</Table.Cell>
+                                        <Table.Cell>{c.emailAddress || '-'}</Table.Cell>
+                                        <Table.Cell>{c.cellPhoneNumber || '-'}</Table.Cell>
+                                        <Table.Cell>
+                                            <Badge colorPalette={c.lastSyncStatus === 'SUCCESS' ? 'green' : 'red'}>
+                                                {c.lastSyncStatus || 'ACTIVE'}
+                                            </Badge>
+                                        </Table.Cell>
+                                        <Table.Cell textAlign="center">
+                                            <HStack justify="center" gap={2}>
+                                                <Button
+                                                    size="sm"
+                                                    variant="ghost"
+                                                    colorPalette="blue"
+                                                    onClick={() => handleOpenModal(c)}
+                                                >
+                                                    <FiEdit2 />
+                                                </Button>
+                                                <Button
+                                                    size="sm"
+                                                    variant="ghost"
+                                                    colorPalette="red"
+                                                    onClick={() => handleOpenDeleteModal(c)}
+                                                >
+                                                    <FiTrash2 />
+                                                </Button>
+                                            </HStack>
+                                        </Table.Cell>
+                                    </Table.Row>
+                                );
+                            })
                         ) : (
                             <Table.Row>
-                                <Table.Cell colSpan={8} textAlign="center" py={6} color="gray.500">
+                                <Table.Cell colSpan={10} textAlign="center" py={6} color="gray.500">
                                     Arama kriterlerine uygun müşteri bulunamadı.
                                 </Table.Cell>
                             </Table.Row>
@@ -352,6 +422,7 @@ export default function CustomersPage() {
                                         <Field.Label fontWeight="medium">Müşteri No</Field.Label>
                                         <Input
                                             type="number"
+                                            min={1}
                                             value={formData.customerId}
                                             onChange={(e) => setFormData({ ...formData, customerId: e.target.value })}
                                             disabled={Boolean(selectedCustomer)}
@@ -370,14 +441,13 @@ export default function CustomersPage() {
                                             disabled={Boolean(selectedCustomer)}
                                             maxLength={11}
                                             onChange={(e) => {
-                                                // Sadece rakam girilmesine izin veren temizlik işlemi
                                                 const onlyNums = e.target.value.replace(/\D/g, '');
                                                 setFormData({ ...formData, trIdentityNo: onlyNums });
                                             }}
                                         />
                                         {isInvalidTcNo && (
                                             <Text color="orange.600" fontSize="xs" mt={1}>
-                                                ⚠️ T.C. Kimlik Numarası  11 haneli olmalıdır!
+                                                ⚠️ T.C. Kimlik Numarası 11 haneli olmalıdır!
                                             </Text>
                                         )}
                                     </Field.Root>
@@ -417,9 +487,8 @@ export default function CustomersPage() {
                                         <Input
                                             placeholder={"0 5xx xxx xx xx"}
                                             value={formData.cellPhoneNumber}
-                                            maxLength = {11}
+                                            maxLength={11}
                                             onChange={(e) => {
-                                                // Sadece rakam yazılmasına izin verir
                                                 const onlyNums = e.target.value.replace(/\D/g, '');
                                                 setFormData({ ...formData, cellPhoneNumber: onlyNums });
                                             }}
@@ -431,9 +500,7 @@ export default function CustomersPage() {
                                         )}
                                         {isInvalidPhone && !isDuplicatePhone && (
                                             <Text color="orange.600" fontSize="xs" mt={1}>
-                                                ⚠️ Telefon numarası 11 haneli olmalıdır ve 0 ile başlamalıdır
-                                                (Örn: 05xxxxxxxxx)
-
+                                                ⚠️ Telefon numarası 11 haneli olmalıdır ve 0 ile başlamalıdır (Örn: 05xxxxxxxxx)
                                             </Text>
                                         )}
                                     </Field.Root>
@@ -460,7 +527,7 @@ export default function CustomersPage() {
                 </Dialog.Positioner>
             </Dialog.Root>
 
-            {/* Özel Silme Onay Modalı */}
+            {/* Tekil Silme Onay Modalı */}
             <Dialog.Root open={isDeleteOpen} onOpenChange={(e) => setIsDeleteOpen(e.open)}>
                 <Dialog.Backdrop bg="blackAlpha.600" />
                 <Dialog.Positioner p={{ base: 3, md: 6 }}>
@@ -492,6 +559,44 @@ export default function CustomersPage() {
                                     loading={isDeleting}
                                 >
                                     Evet, Sil
+                                </Button>
+                            </HStack>
+                        </Dialog.Footer>
+                    </Dialog.Content>
+                </Dialog.Positioner>
+            </Dialog.Root>
+
+            {/* TOPLU SİLME ONAY MODALI */}
+            <Dialog.Root open={isBulkDeleteOpen} onOpenChange={(e) => setIsBulkDeleteOpen(e.open)}>
+                <Dialog.Backdrop bg="blackAlpha.600" />
+                <Dialog.Positioner p={{ base: 3, md: 6 }}>
+                    <Dialog.Content rounded="xl" shadow="2xl" maxW="450px" w="full" mx="auto" p={3}>
+                        <Dialog.Header borderBottomWidth="1px" pb={3}>
+                            <HStack gap={2}>
+                                <FiAlertTriangle size={22} color="#E53E3E" />
+                                <Dialog.Title fontSize="lg" fontWeight="bold" color="red.600">
+                                    Toplu Müşteri Silme Onayı
+                                </Dialog.Title>
+                            </HStack>
+                        </Dialog.Header>
+
+                        <Dialog.Body py={4}>
+                            <Text fontSize="sm" color="gray.700">
+                                Seçmiş olduğunuz <strong>{selectedIds.length} adet</strong> müşteriyi silmek istediğinizden emin misiniz? Bu işlem geri alınamaz.
+                            </Text>
+                        </Dialog.Body>
+
+                        <Dialog.Footer borderTopWidth="1px" pt={3}>
+                            <HStack justify="flex-end" gap={3} w="full">
+                                <Button variant="outline" onClick={() => setIsBulkDeleteOpen(false)}>
+                                    Vazgeç
+                                </Button>
+                                <Button
+                                    colorPalette="red"
+                                    onClick={handleConfirmBulkDelete}
+                                    loading={isBulkDeleting}
+                                >
+                                    Evet, Hepsini Sil
                                 </Button>
                             </HStack>
                         </Dialog.Footer>

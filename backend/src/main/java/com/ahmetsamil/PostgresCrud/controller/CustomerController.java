@@ -1,5 +1,6 @@
 package com.ahmetsamil.PostgresCrud.controller;
 
+import com.ahmetsamil.PostgresCrud.dto.CustomerLookupDto;
 import com.ahmetsamil.PostgresCrud.entity.Customer;
 import com.ahmetsamil.PostgresCrud.service.CustomerService;
 import io.swagger.v3.oas.annotations.tags.Tag;
@@ -29,6 +30,12 @@ public class CustomerController {
         return ResponseEntity.ok(customerService.getCustomerById(id));
     }
 
+    @GetMapping("/lookup")
+    public ResponseEntity<List<CustomerLookupDto>> getCustomerLookup() {
+        // Sadece ID, Ad, Soyad ve TCKN dönen optimize servis çağrısı
+        return ResponseEntity.ok(customerService.getCustomerLookupList());
+    }
+
     @PostMapping
     public ResponseEntity<Customer> createCustomer(@RequestBody Customer customer) {
         return ResponseEntity.ok(customerService.createCustomer(customer));
@@ -42,6 +49,12 @@ public class CustomerController {
     @DeleteMapping("/{id}")
     public ResponseEntity<Void> deleteCustomer(@PathVariable Long id) {
         customerService.deleteCustomer(id);
+        return ResponseEntity.noContent().build();
+    }
+
+    @DeleteMapping("/batch")
+    public ResponseEntity<Void> deleteMultipleCustomers(@RequestBody List<Long> ids) {
+        customerService.deleteMultipleCustomers(ids);
         return ResponseEntity.noContent().build();
     }
 }

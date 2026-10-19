@@ -4,6 +4,7 @@ import com.ahmetsamil.PostgresCrud.entity.IpoProspectusApproval;
 import com.ahmetsamil.PostgresCrud.exception.ResourceNotFoundException;
 import com.ahmetsamil.PostgresCrud.repository.IpoProspectusApprovalRepository;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDateTime;
 import java.util.List;
@@ -53,5 +54,12 @@ public class IpoProspectusApprovalService {
     public void deleteApproval(Long id) {
         IpoProspectusApproval existing = getApprovalById(id);
         ipoApprovalRepository.delete(existing);
+    }
+
+    @Transactional
+    public void approveMultipleIpoApprovals(List<Long> ids) {
+        if (ids != null && !ids.isEmpty()) {
+            ipoApprovalRepository.approveMultipleProspectuses(ids);
+        }
     }
 }

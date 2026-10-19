@@ -48,6 +48,14 @@ export const apiSlice = createApi({
             }),
             invalidatesTags: ['Customer'],
         }),
+        deleteMultipleCustomers: builder.mutation<void, number[]>({
+            query: (ids) => ({
+                url: '/customers/batch',
+                method: 'DELETE',
+                body: ids,
+            }),
+            invalidatesTags: ['Customer'], // Anında tabloyu yeniler
+        }),
 
         // --- 2. ACCOUNT ENDPOINTS ---
         getAccounts: builder.query<Account[], void>({
@@ -74,6 +82,14 @@ export const apiSlice = createApi({
             query: (id) => ({
                 url: `/accounts/${id}`,
                 method: 'DELETE',
+            }),
+            invalidatesTags: ['Account'],
+        }),
+        deleteMultipleAccounts: builder.mutation<void, number[]>({
+            query: (ids) => ({
+                url: '/accounts/batch',
+                method: 'DELETE',
+                body: ids,
             }),
             invalidatesTags: ['Account'],
         }),
@@ -106,6 +122,14 @@ export const apiSlice = createApi({
             }),
             invalidatesTags: ['CustomerAddress'],
         }),
+        deleteMultipleAddresses: builder.mutation<void, number[]>({
+            query: (ids) => ({
+                url: '/customer-addresses/batch',
+                method: 'DELETE',
+                body: ids,
+            }),
+            invalidatesTags: ['CustomerAddress'],
+        }),
 
         // --- 4. CUSTOMER CONTRACT ENDPOINTS ---
         getContracts: builder.query<CustomerContract[], void>({
@@ -132,6 +156,14 @@ export const apiSlice = createApi({
             query: (id) => ({
                 url: `/customer-contracts/${id}`,
                 method: 'DELETE',
+            }),
+            invalidatesTags: ['CustomerContract'],
+        }),
+        deleteMultipleContracts: builder.mutation<void, number[]>({
+            query: (ids) => ({
+                url: '/customer-contracts/batch',
+                method: 'DELETE',
+                body: ids,
             }),
             invalidatesTags: ['CustomerContract'],
         }),
@@ -164,6 +196,14 @@ export const apiSlice = createApi({
             }),
             invalidatesTags: ['BusinessHours'],
         }),
+        deleteMultipleBusinessHours: builder.mutation<void, number[]>({
+            query: (ids) => ({
+                url: '/business-hours/batch',
+                method: 'DELETE',
+                body: ids,
+            }),
+            invalidatesTags: ['BusinessHours'],
+        }),
 
         // --- 6. IPO APPROVAL ENDPOINTS ---
         getIpoApprovals: builder.query<IpoProspectusApproval[], void>({
@@ -193,6 +233,23 @@ export const apiSlice = createApi({
             }),
             invalidatesTags: ['IpoProspectusApproval'],
         }),
+        deleteMultipleIpoApprovals: builder.mutation<void, number[]>({
+            query: (ids) => ({
+                url: '/ipo-approvals/batch',
+                method: 'DELETE',
+                body: ids,
+            }),
+            invalidatesTags: ['IpoProspectusApproval'],
+        }),
+        approveMultipleIpoApprovals: builder.mutation<void, number[]>({
+            query: (ids) => ({
+                url: '/ipo-approvals/batch-approve',
+                method: 'PUT',
+                body: ids,
+            }),
+            invalidatesTags: ['IpoProspectusApproval'], // Onaylandığı an tabloyu anında günceller
+        }),
+
     }),
 });
 
@@ -201,29 +258,36 @@ export const {
     useCreateCustomerMutation,
     useUpdateCustomerMutation,
     useDeleteCustomerMutation,
+    useDeleteMultipleCustomersMutation,
 
     useGetAccountsQuery,
     useCreateAccountMutation,
     useUpdateAccountMutation,
     useDeleteAccountMutation,
+    useDeleteMultipleAccountsMutation,
 
     useGetAddressesQuery,
     useCreateAddressMutation,
     useUpdateAddressMutation,
     useDeleteAddressMutation,
+    useDeleteMultipleAddressesMutation,
 
     useGetContractsQuery,
     useCreateContractMutation,
     useUpdateContractMutation,
     useDeleteContractMutation,
+    useDeleteMultipleContractsMutation,
 
     useGetBusinessHoursQuery,
     useCreateBusinessHoursMutation,
     useUpdateBusinessHoursMutation,
     useDeleteBusinessHoursMutation,
+    useDeleteMultipleBusinessHoursMutation,
 
     useGetIpoApprovalsQuery,
     useCreateIpoApprovalMutation,
     useUpdateIpoApprovalMutation,
     useDeleteIpoApprovalMutation,
+    useDeleteMultipleIpoApprovalsMutation,
+    useApproveMultipleIpoApprovalsMutation,
 } = apiSlice;

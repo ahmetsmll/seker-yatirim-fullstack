@@ -50,4 +50,10 @@ public class IpoProspectusApprovalController {
         ipoApprovalService.deleteApproval(id);
         return ResponseEntity.noContent().build();
     }
+
+    @PutMapping("/batch-approve")
+    public ResponseEntity<Void> approveMultipleIpoApprovals(@RequestBody List<Long> ids) {
+        ipoApprovalService.approveMultipleIpoApprovals(ids);
+        return ResponseEntity.ok().build();
+    }
 }
